@@ -1,0 +1,183 @@
+import sys
+import math
+import random
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+
+# Global variables
+window_width = 350
+window_height = 600
+game_paused = False
+score = 0
+
+class Diamond:
+    def __init__(self, x, y, size):
+        self.x = x
+        self.y = y
+        self.size = size
+        self.color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))  # Random color
+
+    def draw(self):
+        glColor3f(*self.color)
+        glBegin(GL_QUADS)
+        glVertex2f(self.x - self.size / 2, self.y)
+        glVertex2f(self.x, self.y + self.size / 2)
+        glVertex2f(self.x + self.size / 2, self.y)
+        glVertex2f(self.x, self.y - self.size / 2)
+        glEnd()
+
+    def update(self):
+        if not game_paused:
+            self.y -= 1.4  # Adjust the falling speed
+
+            # If the diamond reaches the bottom, reset its position
+            if self.y - self.size / 2 < 0:
+                self.y = window_height + self.size / 2
+                self.x = random.uniform(0, window_width)
+                self.color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
+
+class MovablePlate:
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.speed = 8.0  # Initial movement speed
+
+    def draw(self):
+        glColor3f(0, 0, 1)  # Blue color for the plate
+        glBegin(GL_QUADS)
+        glVertex2f(self.x - self.width / 2, self.y - self.height / 2)
+        glVertex2f(self.x + self.width / 2, self.y - self.height / 2)
+        glVertex2f(self.x + self.width / 2, self.y + self.height / 2)
+        glVertex2f(self.x - self.width / 2, self.y + self.height / 2)
+        glEnd()
+
+    def move_right(self):
+        if self.x + self.width / 2 + self.speed <= window_width:
+            self.x += self.speed
+
+    def move_left(self):
+        if self.x - self.width / 2 - self.speed >= 0:
+            self.x -= self.speed
+
+movable_plate = MovablePlate(window_width / 2, 10, 90, 10)
+diamond = Diamond(window_width / 2, window_height + 20, 20)
+
+def draw_restart_button(x, y, radius, color):
+    segments = 100
+    glColor3f(*color)
+    glBegin(GL_TRIANGLE_FAN)
+    glVertex2f(x, y)
+    for i in range(segments + 1):
+        angle = i * (2.0 * math.pi / segments)
+        glVertex2f(x + radius * math.cos(angle), y + radius * math.sin(angle))
+    glEnd()
+
+def draw_play_pause_button(x, y, size, color, paused):
+    glColor3f(*color)
+    if paused:
+        glBegin(GL_TRIANGLE_FAN)
+        glVertex2f(x, y)
+        glVertex2f(x + size, y + size / 2)
+        glVertex2f(x, y + size)
+        glEnd()
+    else:
+        glBegin(GL_QUADS)
+        glVertex2f(x, y)
+        glVertex2f(x + size, y)
+        glVertex2f(x + size, y + size)
+        glVertex2f(x, y + size)
+        glEnd()
+
+def draw_exit_button(x, y, size, color):
+    glColor3f(*color)
+    glBegin(GL_LINES)
+    glVertex2f(x, y)
+    glVertex2f(x + size, y + size)
+    glVertex2f(x + size, y)
+    glVertex2f(x, y + size)
+    glEnd()
+
+def draw_game(timer=0):
+    global diamond, movable_plate, score, game_paused
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+    # Draw buttons at the top of the screen
+    draw_restart_button(30, window_height - 20, 10, (1, 0, 0))
+    draw_play_pause_button(window_width / 2 - 10, window_height - 30, 20, (0, 1, 0), game_paused)
+    draw_exit_button(window_width - 50, window_height - 30, 20, (1, 0, 0))
+
+    # Draw the falling diamond
+    diamond.draw()
+    diamond.update()
+
+    # Draw the movable plate
+    movable_plate.draw()
+
+    # Check for collision between diamond and plate
+    if (
+        movable_plate.x - movable_plate.width / 2 < diamond.x < movable_plate.x + movable_plate.width / 2 and
+        movable_plate.y - movable_plate.height / 2 < diamond.y < movable_plate.y + movable_plate.height / 2
+    ):
+        score += 1/3
+       
+        print(f"Score: {math.ceil(score)}", end="\r")
+
+    glutSwapBuffers()
+    glutTimerFunc(16, draw_game, 0)  # Schedule the next frame
+
+def handle_mouse(button, state, x, y):
+    global game_paused,score, speed_increase_factor
+
+    y = window_height - y  # Flip y-coordinate
+
+    if button == GLUT_LEFT_BUTTON and state == GLUT_DOWN:
+        # Check button clicks
+        if 20 <= x <= 40 and window_height - 30 <= y <= window_height - 10:
+            score = 0
+            print(f"Score: {score}", end="\r")
+            speed_increase_factor = 0.4
+            diamond.y = window_height + 20
+            diamond.x = random.uniform(0, window_width)
+            diamond.speed = 1.4
+            # Add code for restarting the game
+        elif window_width / 2 - 10 <= x <= window_width / 2 + 10 and window_height - 30 <= y <= window_height - 10:
+            game_paused = not game_paused
+        elif window_width - 50 <= x <= window_width - 30 and window_height - 30 <= y <= window_height - 10:
+            glutLeaveMainLoop()
+
+def handle_special_keys(key, x, y):
+    global movable_plate
+
+    if key == GLUT_KEY_RIGHT:
+        movable_plate.move_right()
+    elif key == GLUT_KEY_LEFT:
+        movable_plate.move_left()
+
+def main():
+    global score
+
+    glutInit(sys.argv)
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB)
+    glutInitWindowSize(window_width, window_height)
+    glutCreateWindow(b"Game Controls")
+
+    glutDisplayFunc(draw_game)
+    glutMouseFunc(handle_mouse)
+    glutSpecialFunc(handle_special_keys)
+
+    glClearColor(0, 0, 0, 1)
+    gluOrtho2D(0, window_width, 0, window_height)
+
+    score = 0  # Initialize score to 0
+    print(f"Score: {score}", end="\r")  # Print initial score
+
+    glutTimerFunc(16, draw_game, 0)  # Schedule the first frame
+
+    glutMainLoop()
+
+if __name__ == "__main__":
+    main()
