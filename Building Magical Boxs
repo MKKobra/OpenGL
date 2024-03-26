@@ -1,1 +1,149 @@
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+import random
+import sys
+import time
 
+# Constants
+WIDTH, HEIGHT = 600, 400
+BOUNDARY = 0.9
+
+points = []
+generating_points = False
+speed = 0.01  # Initial speed
+blinking = False
+frozen = False  # Variable to track frozen state
+
+def draw_point(x, y, color):
+    glPointSize(5)
+    glColor3fv(color)
+    glBegin(GL_POINTS)
+    glVertex2f(x, y)
+    glEnd()
+
+def generate_random_direction():
+    return random.choice([-1, 1]), random.choice([-1, 1])
+
+def generate_random_point(x, y):
+    color = (random.random(), random.random(), random.random())
+    direction = generate_random_direction()
+    return x, y, color, direction
+
+def display():
+    global blinking
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+    for point in points:
+        x, y, color, _ = point
+
+        if blinking and not frozen:  # Apply blinking only when not frozen
+            t = time.time() * 2 % 1  # Faster blinking by multiplying time
+            # Interpolate color between random color and black based on time
+            color = ((1 - t) * color[0], (1 - t) * color[1], (1 - t) * color[2])
+
+        draw_point(x, y, color)
+
+    glutSwapBuffers()
+
+def update_points(_):
+    global generating_points
+
+    if not frozen and generating_points:
+        x, y = random.uniform(-BOUNDARY, BOUNDARY), random.uniform(-BOUNDARY, BOUNDARY)
+        points.append(generate_random_point(x, y))
+        if speed != 0:  # Avoid division by zero
+            glutTimerFunc(int(1 / speed), update_points, 0)  # Adjust the delay for speed
+
+    for i, point in enumerate(points):
+        x, y, color, direction = point
+        new_x, new_y = x + speed * direction[0], y + speed * direction[1]
+
+        # Bounce back from the wall
+        if abs(new_x) > BOUNDARY:
+            direction = (-direction[0], direction[1])
+        if abs(new_y) > BOUNDARY:
+            direction = (direction[0], -direction[1])
+
+        points[i] = (new_x, new_y, color, direction)
+
+    glutPostRedisplay()
+
+def mouse_handler(button, state, x, y):
+    global generating_points, blinking
+
+    if button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN and not generating_points and not frozen:
+        generating_points = True
+        x, y = (x / WIDTH) * 2 - 1, 1 - (y / HEIGHT) * 2
+        points.append(generate_random_point(x, y))
+        if speed != 0:  # Avoid division by zero
+            glutTimerFunc(int(1 / speed), update_points, 0)  # Start animation after the first point
+
+    elif button == GLUT_LEFT_BUTTON and state == GLUT_DOWN and not frozen:
+        blinking = not blinking  # Toggle the blinking state for all points
+
+def keyboard_handler(key, x, y):
+    global speed
+
+    if key == b'\x1b':  # ASCII code for ESC key
+        sys.exit()
+
+    if key == b' ':
+        # Toggle frozen state on spacebar press
+        if not frozen:
+            freeze_points()
+        else:
+            unfreeze_points()
+
+def special_keyboard_handler(key, x, y):
+    global speed
+
+    if key == GLUT_KEY_UP and not frozen:
+        # Increase speed
+        speed += 0.01
+
+    if key == GLUT_KEY_DOWN and not frozen:
+        # Decrease speed, but ensure it doesn't go below zero
+        speed = max(0.0, speed - 0.01)
+
+def freeze_points():
+    global frozen
+    frozen = True
+
+def unfreeze_points():
+    global frozen, generating_points
+    frozen = False
+    if generating_points:
+        x, y = random.uniform(-BOUNDARY, BOUNDARY), random.uniform(-BOUNDARY, BOUNDARY)
+        points.append(generate_random_point(x, y))
+        if speed != 0:  # Avoid division by zero
+            glutTimerFunc(int(1 / speed), update_points, 0)  # Start animation after the first point
+
+def reshape(width, height):
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluOrtho2D(-BOUNDARY, BOUNDARY, -BOUNDARY, BOUNDARY)
+    glMatrixMode(GL_MODELVIEW)
+
+def main():
+    glutInit(sys.argv)
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
+    glutInitWindowSize(WIDTH, HEIGHT)
+    glutCreateWindow(b"Building the Amazing Box")
+
+    glutDisplayFunc(display)
+    glutIdleFunc(lambda: None)  # No idle function for smoother animation
+    glutMouseFunc(mouse_handler)
+    glutReshapeFunc(reshape)
+    glutKeyboardFunc(keyboard_handler)
+    glutSpecialFunc(special_keyboard_handler)  # Register the special (arrow key) handler
+
+    glEnable(GL_DEPTH_TEST)
+    glClearColor(0.0, 0.0, 0.0, 1.0)
+
+    glutMainLoop()
+
+if __name__ == "__main__":
+    main()
