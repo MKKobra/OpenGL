@@ -1,0 +1,172 @@
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+from random import random
+from math import sin, cos, pi
+
+light_intensity = 0.5  # Initial light intensity
+rain_intensity = 0.0  # Initial rain intensity
+bend_factor = 0.02    # Initial bend factor for rain
+house_color_top = [0.8, 0.2, 0.2]  # Top color for the house gradient
+house_color_bottom = [0.6, 0.1, 0.1]  # Bottom color for the house gradient
+sun_color = [1.0, 0.5, 0.0]  # Sun color (orange)
+moon_color = [0.5, 0.5, 0.5]  # Moon color
+
+def draw_house():
+    glBegin(GL_QUADS)
+    glColor3f(house_color_top[0], house_color_top[1], house_color_top[2])
+    glVertex2f(-0.3, -0.5)
+    glVertex2f(0.3, -0.5)
+    glColor3f(house_color_bottom[0], house_color_bottom[1], house_color_bottom[2])
+    glVertex2f(0.3, 0.0)
+    glVertex2f(-0.3, 0.0)
+    glEnd()
+
+    glColor3f(house_color_top[0] - 0.2, house_color_top[1] - 0.2, house_color_top[2] - 0.2)
+    glBegin(GL_TRIANGLES)
+    glVertex2f(-0.3, 0.0)
+    glVertex2f(0.0, 0.3)
+    glVertex2f(0.3, 0.0)
+    glEnd()
+
+def draw_sun():
+    glColor3f(sun_color[0], sun_color[1], sun_color[2])
+    glBegin(GL_TRIANGLE_FAN)
+    glVertex2f(0.0, 0.7)  # Lower position for the sun
+    num_segments = 100
+    for i in range(num_segments + 1):
+        theta = (i / num_segments) * (2.0 * pi)
+        x = 0.15 * cos(theta)
+        y = 0.15 * sin(theta)
+        glVertex2f(x, y + 0.7)
+    glEnd()
+
+def draw_moon():
+    glColor3f(moon_color[0], moon_color[1], moon_color[2])
+    glBegin(GL_TRIANGLE_FAN)
+    glVertex2f(0.0, 0.7)  # Lower position for the moon
+    num_segments = 100
+    for i in range(num_segments + 1):
+        theta = (i / num_segments) * (2.0 * pi)
+        x = 0.15 * cos(theta)
+        y = 0.15 * sin(theta)
+        glVertex2f(x, y + 0.7)
+    glEnd()
+
+def draw_rain():
+    glColor3f(0.0, 0.0, 1.0)  # Blue color for raindrops
+    glBegin(GL_LINES)
+
+    for i in range(500):  # Increase the number of raindrops
+        x = (random() - 0.5) * 2.0  # Cover the full window width
+        y = (random() - 0.5) * 2.0  # Cover the full window height
+        length = 0.03 + rain_intensity * 0.08  # Longer raindrops
+        bend = bend_factor * 0.01
+
+        glVertex2f(x, y)
+        glVertex2f(x + bend, y - length)
+
+    glEnd()
+
+def change_light(day_to_night):
+    global light_intensity
+    if day_to_night:
+        light_intensity -= 0.01
+    else:
+        light_intensity += 0.01
+    light_intensity = max(0.0, min(1.0, light_intensity))
+    glClearColor(light_intensity, light_intensity, light_intensity, 1.0)
+
+def change_rain(intensity):
+    global rain_intensity
+    rain_intensity = max(0.0, min(1.0, rain_intensity + intensity))
+
+def bend_rain(direction):
+    global bend_factor
+    bend_factor += direction * 0.01
+    bend_factor = max(-1.0, min(1.0, bend_factor))
+
+def color_transition():
+    global house_color_top, house_color_bottom, sun_color, moon_color
+
+    # Beautiful aesthetic color transition for the house
+    house_color_top[0] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001))
+    house_color_top[1] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001 + 2.094))
+    house_color_top[2] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001 + 4.188))
+
+    house_color_bottom[0] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001 + 1.047))
+    house_color_bottom[1] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001 + 3.142))
+    house_color_bottom[2] = abs(sin(glutGet(GLUT_ELAPSED_TIME) * 0.001 + 5.236))
+
+    # Sun and moon colors remain constant
+    sun_color = [1.0, 0.5, 0.0]  # Orange for the sun
+    moon_color = [0.5, 0.5, 0.5]  # Ash color for the moon
+
+def display():
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glLoadIdentity()
+
+    # Draw the house
+    draw_house()
+
+    # Draw sun or moon based on light condition
+    if light_intensity > 0.5:
+        glPushMatrix()
+        draw_sun()
+        glPopMatrix()
+    else:
+        glPushMatrix()
+        draw_moon()
+        glPopMatrix()
+
+    # Update and draw the rain
+    glPushMatrix()
+    draw_rain()
+    glPopMatrix()
+
+    # Update color transition for the house
+    color_transition()
+
+    glutSwapBuffers()
+
+def keyboard(key, x, y):
+    global light_intensity, rain_intensity
+
+    if key == b'd':
+        change_light(True)  # Simulate day to night
+    elif key == b'n':
+        change_light(False)  # Simulate night to day
+    elif key == b'u':
+        change_rain(0.1)  # Increase rain intensity
+    elif key == b'b':
+        change_rain(-0.1)  # Decrease rain intensity
+
+    glutPostRedisplay()
+
+def special_keyboard(key, x, y):
+    global bend_factor
+
+    if key == GLUT_KEY_RIGHT:
+        bend_rain(1)  # Bend rain to the right
+    elif key == GLUT_KEY_LEFT:
+        bend_rain(-1)  # Bend rain to the left
+
+    glutPostRedisplay()
+
+def main():
+    glutInit(sys.argv)
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
+    glutInitWindowSize(500, 500)
+    glutCreateWindow(b"Day and Night Simulation with Continuous Rain")
+
+    glEnable(GL_DEPTH_TEST)
+
+    glutDisplayFunc(display)
+    glutIdleFunc(display)
+    glutKeyboardFunc(keyboard)
+    glutSpecialFunc(special_keyboard)  # Use glutSpecialFunc for arrow keys
+
+    glutMainLoop()
+
+if __name__ == "__main__":
+    main()
